@@ -191,3 +191,44 @@ GlobalScope.launch(Dispatchers.IO) { waitFingerPrint() }
 - ما تستخدموش كتير عشان ممكن يسبب **memory leaks** لو الكوروتين فضل شغال من غير داعي.
 
 ---
+تمام، هكتب ملخص عن **withContext** بالعامية المصرية، بأسلوب إنستراكتور بيشرح في كورس تطوير تطبيقات للديفيلوبرز على **Kotlin** وأندرويد، بس بطريقة بسيطة و**readable** تناسب حتى اللي ما يعرفش حاجة عن الموضوع. هتكون مركزة على إزاي **withContext** بيخلّيك تبدّل بين الـ **Dispatchers**، وإن الـ **Dispatcher** الواحد بيشتغل على أكتر من **worker thread**. هحافظ على المصطلحات التقنية زي **Dispatcher** و**worker threads**، وهظبّط الكود اللي بعتيه مع تنسيق واضح.
+
+---
+# withContext
+#### إيه هو withContext؟
+هو tool في **Coroutines** بتخلّيك تبدّل الـ **Dispatcher** اللي الكوروتين بيشتغل عليه أثناء التنفيذ. يعني تقدر تقول لجزء معين من الكود: "اشتغل على **thread** معين" من غير ما تعقّد الكود.
+- مفيد لما تكون بتعمل حاجة زي حفظ بيانات على ملف (بتحتاج **Dispatchers.IO**) وبعدين ترجع تعمل حاجة تانية على الـ **main thread** (زي تحديث الـ **UI**).
+- الـ **Dispatcher** الواحد، زي **Dispatchers.IO** أو **Dispatchers.Default**، بيشتغل على أكتر من **worker thread** في الـ **Thread Pool**، يعني بيوزّع الشغل على **threads** كتير علشان يكون أسرع.
+
+#### مثال بسيط:
+تخيّل إنك بتعمل أبليكيشن، وعايز تحفظ داتا في ملف (ده شغل تقيل، يعني لازم **Dispatchers.IO**)، وبعدين ترجع تعمل حاجة تانية. من غير **withContext**، هتضطر تدير الـ **threads** بنفسك. لكن مع **withContext**، الكود بيبقى زي كده:
+
+```kotlin
+import kotlinx.coroutines.*
+
+fun main() = runBlocking {
+    coroutineScope.launch {
+        println("Starting on ${Thread.currentThread().name}")
+        withContext(Dispatchers.IO) {
+            println("Saving data to file ${Thread.currentThread().name}")
+        }
+        println("Back to ${Thread.currentThread().name}")
+    }
+}
+```
+
+#### إيه اللي بيحصل هنا؟
+
+- الـ **coroutineScope.launch** بيشغّل الكوروتين على الـ **Dispatcher** الافتراضي (غالبا الـ **main thread** أو الـ **Default** حسب الـ **scope**).
+- لما نستخدم **withContext(Dispatchers.IO)**، الكود جواه (زي حفظ البيانات) بيتنفذ على **worker thread** من **Thread Pool** بتاع **Dispatchers.IO**.
+- الـ **Dispatcher** زي **IO** بيستخدم أكتر من **worker thread**، فممكن تلاقي المهمة بتشتغل على **IO-worker-1** أو **IO-worker-2**، حسب الـ **Thread Pool**.
+- بعد ما **withContext** يخلّص، الكوروتين بيرجع للـ **Dispatcher** الأصلي (اللي بدأ بيه).
+
+#### الـ Output 
+```
+Starting on main
+Saving data to file DefaultDispatcher-worker-1
+Back to main
+```
+
+
